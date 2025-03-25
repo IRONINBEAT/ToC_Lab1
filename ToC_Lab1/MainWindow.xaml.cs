@@ -12,6 +12,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using ToC_Lab1;
 
 namespace ToC_Lab1
 {
@@ -54,7 +55,16 @@ namespace ToC_Lab1
             DataContext = this; 
             // Устанавливаем обработчик события изменения текста
             TextEditor.PreviewKeyDown += TextEditor_PreviewKeyDown;
-            //this.PreviewKeyDown += MainWindow_PreviewKeyDown; // Добавляем обработчик для Ctrl+Z, Ctrl+Y
+            this.PreviewKeyDown += MainWindow_PreviewKeyDown;
+        }
+
+        private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                FindFIO_FiniteStateMachine(sender, e); // Или любой другой метод
+                e.Handled = true; // Предотвращаем дальнейшую обработку
+            }
         }
 
         // Обработчик нажатия клавиш
@@ -320,102 +330,6 @@ namespace ToC_Lab1
             ErrorOutput.Clear();
         }
 
-        //private void FindFIO_RegEx(object sender, RoutedEventArgs e)
-        //{
-        //    // Получаем текст из TextEditor
-        //    string inputText = TextEditor.Text;
-
-
-
-        //    Regex regex = new Regex(pattern);
-        //    MatchCollection matches = regex.Matches(inputText);
-
-        //    // Очищаем ErrorOutput перед выводом новых данных
-        //    ErrorOutput.Clear();
-
-        //    // Если найдены совпадения, выводим их
-        //    if (matches.Count > 0)
-        //    {
-        //        // Создаем TextBlock для отображения текста с подсветкой
-        //        HighlightedText.Inlines.Clear();
-
-        //        // Разделяем текст на строки
-        //        string[] lines = inputText.Split('\n');
-
-        //        // Создаем StringBuilder для формирования результата
-        //        StringBuilder result = new StringBuilder();
-
-        //        int lastIndex = 0;
-        //        foreach (Match match in matches)
-        //        {
-        //            // Находим номер строки и позицию в строке
-        //            int lineNumber = 1;
-        //            int positionInLine = match.Index;
-        //            int currentLength = 0;
-
-        //            // Добавляем текст до совпадения
-        //            HighlightedText.Inlines.Add(new Run(inputText.Substring(lastIndex, match.Index - lastIndex)));
-
-        //            // Добавляем совпадение с подсветкой
-        //            HighlightedText.Inlines.Add(new Run(match.Value)
-        //            {
-        //                Background = Brushes.Yellow,
-        //                Foreground = Brushes.Black
-        //            });
-
-        //            // Вычисляем позицию конца вхождения
-        //            int endPosition = match.Index + match.Length;
-
-        //            for (int i = 0; i < lines.Length; i++)
-        //            {
-        //                if (currentLength + lines[i].Length + 1 > match.Index) // +1 для учета символа новой строки
-        //                {
-        //                    lineNumber = i + 1;
-        //                    positionInLine = match.Index - currentLength;
-        //                    break;
-        //                }
-        //                currentLength += lines[i].Length + 1; // +1 для учета символа новой строки
-        //            }
-
-        //            // Формируем строку результата
-        //            string matchInfo = $"Найдено: {match.Value} (Строка: {lineNumber}, Позиция начала: {positionInLine}, Позиция конца: {endPosition})";
-        //            result.AppendLine(matchInfo);
-
-        //            // Выводим результат в ErrorOutput
-        //            ErrorOutput.AppendText(matchInfo + Environment.NewLine);
-
-        //            lastIndex = match.Index + match.Length;
-        //        }
-
-        //        // Добавляем оставшийся текст
-        //        HighlightedText.Inlines.Add(new Run(inputText.Substring(lastIndex)));
-
-        //        // Показываем TextBlock с подсветкой
-        //        HighlightedText.Visibility = Visibility.Visible;
-        //        TextEditor.Visibility = Visibility.Collapsed;
-
-        //        // Предлагаем пользователю сохранить результат в файл
-        //        SaveFileDialog saveFileDialog = new SaveFileDialog
-        //        {
-        //            Filter = "Text Files (*.txt)|*.txt",
-        //            DefaultExt = ".txt",
-        //            Title = "Сохранить результаты поиска"
-        //        };
-
-        //        if (saveFileDialog.ShowDialog() == true)
-        //        {
-        //            // Сохраняем результат в файл
-        //            File.WriteAllText(saveFileDialog.FileName, result.ToString());
-        //            MessageBox.Show("Результаты поиска успешно сохранены!", "Сохранение", MessageBoxButton.OK, MessageBoxImage.Information);
-        //        }
-        //    }
-        //    else
-        //    {
-        //        // Если ничего не найдено, показываем сообщение
-        //        ErrorOutput.AppendText("Не найдено совпадений!" + Environment.NewLine);
-        //    }
-        //}
-
         private void FindFIO_RegEx(object sender, RoutedEventArgs e)
         {
             // Получаем текст из TextEditor
@@ -524,28 +438,23 @@ namespace ToC_Lab1
             // Создаем конечный автомат
             var machine = new StateMachine();
 
-            // Обрабатываем текст посимвольно
-            for (int i = 0; i < inputText.Length; i++)
-            {
-                char currentChar = inputText[i];
-                machine.Transition(currentChar);
+            // Обрабатываем весь текст
+            List<string> validSequences = machine.Process(inputText);
 
-                // Если достигнуто состояние ошибки, прерываем обработку
-                if (machine.CurrentState == "SE")
+            // Выводим найденные корректные цепочки
+            if (validSequences.Count > 0)
+            {
+                foreach (var sequence in validSequences)
                 {
-                    break;
+                    ErrorOutput.AppendText($"Найдено ФИО: {sequence}\n");
                 }
             }
-
-            // Получаем результат обработки
-            //bool isValid = (machine.CurrentState == "S6" || machine.CurrentState == "S12"); // Успешное завершение
-            //string status = isValid ? "КОРРЕКТНО" : "НЕКОРРЕКТНО";
-            string statesHistory = string.Join(" → ", machine.States);
-
-            // Выводим результат в ErrorOutput
-            //ErrorOutput.AppendText($"Результат обработки: {status}\n");
-            ErrorOutput.AppendText($"Состояния КА: {statesHistory}\n");
+            else
+            {
+                ErrorOutput.AppendText("ФИО не найдено.\n");
+            }
         }
+
 
         private void GetRegularExpression(object sender, RoutedEventArgs e)
         {
