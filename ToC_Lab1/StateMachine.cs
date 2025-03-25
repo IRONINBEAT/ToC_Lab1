@@ -28,17 +28,21 @@ namespace ToC_Lab1
                 Transition(symbol);
 
                 // Если достигли конечного состояния, сохраняем цепочку
-                if (_currentState == "S6")
+                if (_currentState == "S6" || _currentState == "S12")
                 {
+                    // Добавляем конечное состояние
                     _currentSequence.Add($"{_currentState}");
-                    _validSequences.Add(string.Join(" -> ", _currentSequence));
-                    _currentSequence.Clear();
-                    _currentState = "S0"; // Сбрасываем для поиска следующего ФИО
-                }
-                if (_currentState == "S12")
-                {
-                    _currentSequence.Add($"{_currentState}");
-                    _validSequences.Add(string.Join(" -> ", _currentSequence));
+
+                    // Формируем полную последовательность
+                    var fullSequence = string.Join(" -> ", _currentSequence);
+
+                    // Удаляем возможное дублирование S0 в начале
+                    if (fullSequence.StartsWith("S0 ( ) -> S0"))
+                    {
+                        fullSequence = fullSequence.Substring(10); // Удаляем первый "S0 ( ) -> "
+                    }
+
+                    _validSequences.Add(fullSequence);
                     _currentSequence.Clear();
                     _currentState = "S0"; // Сбрасываем для поиска следующего ФИО
                 }
@@ -137,8 +141,8 @@ namespace ToC_Lab1
                 case "S11":
                     if (IsRussianLower(symbol)) _currentState = "S11";
                     else if (symbol == '-') _currentState = "S11A";
-                    else if (symbol == ' ' || symbol == '\0') _currentState = "S12";
-                    else _currentState = "SE";
+                    //else if (symbol == ' ' || symbol == '\0') _currentState = "S12";
+                    else _currentState = "S12";
                     break;
 
                 case "S11A":
