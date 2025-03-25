@@ -28,8 +28,16 @@ namespace ToC_Lab1
                 Transition(symbol);
 
                 // Если достигли конечного состояния, сохраняем цепочку
-                if (_currentState == "S6" || _currentState == "S12")
+                if (_currentState == "S6")
                 {
+                    _currentSequence.Add($"{_currentState}");
+                    _validSequences.Add(string.Join(" -> ", _currentSequence));
+                    _currentSequence.Clear();
+                    _currentState = "S0"; // Сбрасываем для поиска следующего ФИО
+                }
+                if (_currentState == "S12")
+                {
+                    _currentSequence.Add($"{_currentState}");
                     _validSequences.Add(string.Join(" -> ", _currentSequence));
                     _currentSequence.Clear();
                     _currentState = "S0"; // Сбрасываем для поиска следующего ФИО
