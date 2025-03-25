@@ -29,13 +29,9 @@ namespace ToC_Lab1
                     {
                         _currentState = "S1_temp"; // Временное состояние для определения контекста
                     }
-                    else if (symbol == ' ')
-                    {
-                        _currentState = "S0"; // Пропускаем пробелы в начале
-                    }
                     else
                     {
-                        _currentState = "SE"; // Ошибка
+                        _currentState = "S0"; // Пропускаем символы до начала ФИО
                     }
                     break;
 
@@ -50,7 +46,7 @@ namespace ToC_Lab1
                     }
                     else
                     {
-                        _currentState = "SE"; // Ошибка
+                        _currentState = "S0";
                     }
                     break;
 
@@ -69,7 +65,7 @@ namespace ToC_Lab1
                     }
                     else
                     {
-                        _currentState = "SE"; // Ошибка
+                        _currentState = "S0"; // Ошибка
                     }
                     break;
 
@@ -95,7 +91,7 @@ namespace ToC_Lab1
                     }
                     else
                     {
-                        _currentState = "SE"; // Ошибка
+                        _currentState = "S1_temp"; // Ошибка
                     }
                     break;
 
@@ -106,7 +102,7 @@ namespace ToC_Lab1
                     }
                     else
                     {
-                        _currentState = "SE"; // Ошибка
+                        _currentState = "S1_temp"; // Ошибка
                     }
                     break;
 
@@ -137,14 +133,20 @@ namespace ToC_Lab1
                     break;
 
                 case "S6": // Конечное состояние (фамилия + инициалы)
-                    _currentState = "SE"; // После S6 только ошибка
+                    _currentState = "S0"; // После S6 можно продолжать обработку текста
                     break;
 
                 case "S7": // Обработка первого инициала (инициалы перед фамилией)
-                    if (symbol == '.')
+                    if (IsRussianUpper(symbol))
+                    {
+                        _currentState = "S9";
+                    }
+
+                    if (symbol == ' ')
                     {
                         _currentState = "S8"; // Переход к пробелу между инициалами
                     }
+                    
                     else
                     {
                         _currentState = "SE"; // Ошибка
@@ -223,14 +225,14 @@ namespace ToC_Lab1
                     break;
 
                 case "S12": // Конечное состояние (инициалы + фамилия)
-                    _currentState = "SE"; // После S12 только ошибка
+                    _currentState = "S12"; // После S12 можно продолжать обработку текста
                     break;
 
                 case "SE": // Состояние ошибки
                            // Остаемся в состоянии ошибки
                     break;
             }
-            _states.Add(_currentState);
+            _states.Add(_currentState + $"({symbol})");
         }
 
         public (bool IsValid, List<string> States) Process(string input)
