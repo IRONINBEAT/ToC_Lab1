@@ -79,6 +79,36 @@ namespace ToC_Lab1
             }
         }
 
+        /*По курсачу*/
+
+        private void RunSyntaxCheck(object sender, RoutedEventArgs e)
+        {
+            Parser parser = new();
+
+            string inputText = TextEditor.Text;
+            string correctedText = parser.Parse(inputText);
+            string errors = parser.GetErrors();
+
+            // Вывод ошибок
+            ErrorOutput.Text = errors;
+
+            // Подсветка ошибок (можно использовать RichTextBox)
+            //HighlightErrors(errors);
+
+        }
+
+        private void HighlightErrors(string errors)
+        {
+            if (string.IsNullOrWhiteSpace(errors))
+            {
+                TextEditor.Background = Brushes.White;
+                return;
+            }
+
+            TextEditor.Background = new SolidColorBrush(Color.FromArgb(50, 255, 0, 0)); // Легкий красный оттенок
+        }
+
+        /*По курсачу*/
         private void NewFile(object sender, RoutedEventArgs e)
         {
             if (!string.IsNullOrEmpty(currentFilePath) || !string.IsNullOrEmpty(TextEditor.Text))

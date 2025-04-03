@@ -11,10 +11,12 @@ namespace ToC_Lab1
         private string _currentState;
         private readonly List<string> _validSequences = new List<string>();
         private List<string> _currentSequence = new List<string>();
-
+        private List<char> _hasSurnameChar = new List<char>();
+        
         public StateMachine()
         {
             _currentState = "S0";
+            
         }
 
         public List<string> Process(string input)
@@ -51,6 +53,7 @@ namespace ToC_Lab1
                 if (_currentState == "SE")
                 {
                     _currentSequence.Clear();
+                    _hasSurnameChar.Clear();
                     _currentState = "S0";
                 }
             }
@@ -133,15 +136,58 @@ namespace ToC_Lab1
                     break;
 
                 case "S10":
-                    if (IsRussianUpper(symbol)) _currentState = "S11";
+                    if (IsRussianUpper(symbol))
+                    {
+                        _currentState = "S11";
+                        _hasSurnameChar.Add(symbol);
+                    }
                     else if (symbol == ' ') _currentState = "S10";
                     else _currentState = "SE";
                     break;
 
+                //case "S11":
+                //if (IsRussianLower(symbol))
+                //{
+                //    _currentState = "S11";
+                //    // Запоминаем, что был хотя бы один символ фамилии
+                //    _hasSurnameChar = true;
+                //}
+                //else if (symbol == '-')
+                //{
+                //    if (!_hasSurnameChar) // Если до дефиса не было символов
+                //        _currentState = "SE";
+                //    else
+                //        _currentState = "S11A";
+                //}
+                //else if (IsRussianUpper(symbol))
+                //{
+                //    _currentState = "SE"; // Заглавные буквы в середине фамилии недопустимы
+                //}
+                //else
+                //{
+                //    // Переход в конечное состояние только если был хотя бы один символ фамилии
+                //    if (_hasSurnameChar)
+                //        _currentState = "S12";
+                //    else
+                //        _currentState = "SE";
+                //}
+                //break;
                 case "S11":
-                    if (IsRussianLower(symbol)) _currentState = "S11";
+
+                    if (IsRussianLower(symbol))
+                    {
+                        _currentState = "S11";
+                        _hasSurnameChar.Clear();
+                    }
                     else if (symbol == '-') _currentState = "S11A";
-                    //else if (symbol == ' ' || symbol == '\0') _currentState = "S12";
+                    else if (IsRussianUpper(symbol))
+                    {
+                        _currentState = "SE";
+                    }//если сломается - убрать
+                    else if ((symbol == ' ' || symbol == '\0') && _hasSurnameChar.Count == 1)
+                    {
+                        _currentState = "SE";
+                    }
                     else _currentState = "S12";
                     break;
 
@@ -152,10 +198,12 @@ namespace ToC_Lab1
 
                 case "S12":
                     _currentState = "S0";
+                    _hasSurnameChar.Clear();
                     break;
 
                 case "SE":
                     _currentState = "SE";
+                    _hasSurnameChar.Clear();
                     break;
             }
         }
