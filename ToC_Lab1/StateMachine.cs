@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Resources;
 
 namespace ToC_Lab1
 {
@@ -12,16 +13,28 @@ namespace ToC_Lab1
         private readonly List<string> _validSequences = new List<string>();
         private List<string> _currentSequence = new List<string>();
         private List<char> _hasSurnameChar = new List<char>();
-        
+        private List<string> _currentSurname = new List<string>();
+        private List<string> _validSurname = new List<string>();
+
+        public string ValidSurname { 
+            get 
+            {
+                var fullSequence = string.Join("-> ", _validSurname);
+                return fullSequence;
+            } 
+        }
+
+
+
         public StateMachine()
         {
             _currentState = "S0";
-            
         }
 
         public List<string> Process(string input)
         {
             _validSequences.Clear();
+            _validSurname.Clear();
             _currentSequence.Clear();
             _currentState = "S0";
 
@@ -35,24 +48,22 @@ namespace ToC_Lab1
                     // Добавляем конечное состояние
                     _currentSequence.Add($"{_currentState}");
 
-                    // Формируем полную последовательность
-                    var fullSequence = string.Join(" -> ", _currentSequence);
 
-                    // Удаляем возможное дублирование S0 в начале
-                    if (fullSequence.StartsWith("S0 ( ) -> S0"))
-                    {
-                        fullSequence = fullSequence.Substring(10); // Удаляем первый "S0 ( ) -> "
-                    }
+                    // Формируем полную последовательность
+                    var fullSequence = string.Join("-> ", _currentSequence);
+
 
                     _validSequences.Add(fullSequence);
-                    _currentSequence.Clear();
                     _currentState = "S0"; // Сбрасываем для поиска следующего ФИО
+
+                    _validSurname.Add($"{_currentSurname}");
                 }
 
                 // Если состояние ошибки, сбрасываем автомат и начинаем заново
                 if (_currentState == "SE")
                 {
-                    _currentSequence.Clear();
+                    _currentSequence.Add($"{_currentState} ({symbol})");
+                    _currentSurname.Clear();
                     _hasSurnameChar.Clear();
                     _currentState = "S0";
                 }
@@ -64,7 +75,7 @@ namespace ToC_Lab1
         private void Transition(char symbol)
         {
             _currentSequence.Add($"{_currentState} ({symbol})");
-
+            _currentSurname.Add($"{symbol}");
             switch (_currentState)
             {
                 case "S0":
@@ -76,7 +87,7 @@ namespace ToC_Lab1
                 case "S1_temp":
                     if (symbol == '.') _currentState = "S7";
                     else if (IsRussianLower(symbol) || symbol == '-') _currentState = "S1";
-                    else if (symbol == ' ') _currentState = "S1_temp";
+                    else if (symbol == ' ') _currentState = "SE";
                     else _currentState = "SE";
                     break;
 

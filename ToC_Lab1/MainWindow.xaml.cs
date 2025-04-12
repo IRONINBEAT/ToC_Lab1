@@ -13,6 +13,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 using ToC_Lab1;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace ToC_Lab1
 {
@@ -62,7 +63,7 @@ namespace ToC_Lab1
         {
             if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control)
             {
-                FindFIO_FiniteStateMachine(sender, e); // Или любой другой метод
+                RunSyntaxCheck(sender, e); // Или любой другой метод
                 e.Handled = true; // Предотвращаем дальнейшую обработку
             }
         }
@@ -79,24 +80,64 @@ namespace ToC_Lab1
             }
         }
 
-        /*По курсачу*/
+
 
         private void RunSyntaxCheck(object sender, RoutedEventArgs e)
         {
-            Parser parser = new();
+            ErrorOutput.Clear();
+            Lexer lexer = new();
 
             string inputText = TextEditor.Text;
-            string correctedText = parser.Parse(inputText);
-            string errors = parser.GetErrors();
+            var outputTokens = lexer.Analyze(inputText);
 
-            // Вывод ошибок
-            ErrorOutput.Text = errors;
+
+            foreach (var token in outputTokens)
+            {
+                ErrorOutput.AppendText($"{token}\n");
+            }
+            
 
             // Подсветка ошибок (можно использовать RichTextBox)
             //HighlightErrors(errors);
 
         }
 
+        //private void RunSyntaxCheck(object sender, RoutedEventArgs e)
+        //{
+        //    //ErrorOutput.Clear();
+        //    //Lexer lexer = new Lexer();
+        //    //List<Token> tokens = lexer.Analyze(TextEditor.Text);
+
+        //    //foreach (var token in tokens)
+        //    //{
+        //    //    ErrorOutput.AppendText($"{token}\n");
+        //    //}
+        //    ErrorOutput.Clear();
+        //    var lexer = new Lexer();
+        //    var tokens = lexer.Tokenize(TextEditor.Text);
+
+
+        //    var parser = new Parser(tokens);
+        //    parser.ParseProgram();
+
+
+        //    // Получаем список ошибок
+        //    List<string> errors = parser.GetErrors();
+
+        //    if (errors.Count > 0)
+        //    {
+        //        // Выводим ошибки, если они есть
+        //        foreach (var error in errors)
+        //        {
+        //            ErrorOutput.AppendText($"{error}\n");
+        //        }
+        //    }
+        //    else
+        //    {
+        //        ErrorOutput.AppendText("Парсинг прошел успешно!");
+        //    }
+
+        //}
         private void HighlightErrors(string errors)
         {
             if (string.IsNullOrWhiteSpace(errors))
@@ -476,13 +517,15 @@ namespace ToC_Lab1
             {
                 foreach (var sequence in validSequences)
                 {
-                    ErrorOutput.AppendText($"Найдено ФИО: {sequence}\n");
+                    ErrorOutput.AppendText($"Цепочка переходов: {sequence}\n");
                 }
             }
             else
             {
                 ErrorOutput.AppendText("ФИО не найдено.\n");
             }
+
+
         }
 
 
