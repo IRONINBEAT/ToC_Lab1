@@ -83,6 +83,7 @@ namespace ToC_Lab1
                     return null;
                 }
             }
+
             else if (Match(TokenType.repeat) || Check(TokenType.UnknownWord))
             {
                 Token repeatToken;
