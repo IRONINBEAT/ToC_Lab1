@@ -84,22 +84,42 @@ namespace ToC_Lab1
 
         private void RunSyntaxCheck(object sender, RoutedEventArgs e)
         {
+            /*------------------------Лаба----------------------------*/
             ErrorOutput.Clear();
-            Lexer lexer = new();
+            //Lexer lexer = new();
 
-            string inputText = TextEditor.Text;
-            var outputTokens = lexer.Analyze(inputText);
+            //string inputText = TextEditor.Text;
+            //var outputTokens = lexer.Analyse(inputText);
 
 
-            foreach (var token in outputTokens)
-            {
-                ErrorOutput.AppendText($"{token}\n");
-            }
-            
+            //foreach (var token in outputTokens)
+            //{
+            //    ErrorOutput.AppendText($"{token}\n");
+            //}
+
 
             // Подсветка ошибок (можно использовать RichTextBox)
             //HighlightErrors(errors);
 
+
+            /*------------------------Курсовик------------------------*/
+            var lexer = new Lexer();
+            var tokens = lexer.Tokenize(TextEditor.Text);
+
+            var parser = new Parser();
+            var ast = parser.Parse(tokens);
+
+
+            if (parser.Errors.Count > 0)
+            {
+                foreach (var error in parser.Errors)
+                    ErrorOutput.AppendText($"{error}\n");
+            }
+            else
+            {
+                ErrorOutput.AppendText("✅ Синтаксический разбор успешен:\n");
+                ErrorOutput.AppendText($"{ast}");
+            }
         }
 
         //private void RunSyntaxCheck(object sender, RoutedEventArgs e)

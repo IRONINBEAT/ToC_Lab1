@@ -6,6 +6,278 @@ using System.Threading.Tasks;
 
 namespace ToC_Lab1
 {
+    public class Parser
+    {
+        private List<Token> tokens;
+        private int position;
+        public List<string> Errors { get; } = new();
+
+        public ASTNode Parse(List<Token> tokenList)
+        {
+            tokens = tokenList;
+            position = 0;
+
+            // Теперь передаем hadAnyCommands
+            bool hadCommands;
+            var body = ParseCommandSequence(out hadCommands);
+
+            if (Errors.Count == 0 && position < tokens.Count)
+                Errors.Add($"Лишние токены после конца программы, начиная с: {Peek()}");
+
+            // Если в блоке команд есть хотя бы одна команда (несмотря на ошибки), не считаем его пустым
+            if (!hadCommands)
+            {
+                Errors.Add($"Пустой блок команд в repeat на строке {Previous().Line}, столбце {Previous().Column}");
+            }
+
+            return body.Count == 1 ? body[0] : new RepeatNode("1", body); // Если несколько команд, оборачиваем их в repeat
+        }
+
+      
+
+        private List<ASTNode> ParseCommandSequence(out bool hadAnyCommands)
+        {
+            var commands = new List<ASTNode>();
+            hadAnyCommands = false;
+
+            while (!IsAtEnd() && !Check(TokenType.CloseBracket))
+            {
+                var command = ParseCommand();
+                hadAnyCommands = true; // ← Даже если с ошибкой, это попытка команды
+
+                if (command != null)
+                    commands.Add(command);
+            }
+
+            return commands;
+        }
+
+
+        private ASTNode? ParseCommand()
+        {
+            var token = Peek();
+
+            if (Match(TokenType.forward, TokenType.back, TokenType.left, TokenType.right))
+            {
+                Token command = Previous();
+                if (Match(TokenType.Number))
+                {
+                    return new CommandNode(command.Type, Previous().Value);
+                }
+                else
+                {
+                    Errors.Add($"Ожидалось число после {command.Type} на строке {command.Line}, столбце {command.Column}");
+                    // Пытаемся продолжить дальше, даже если ошибка
+                    return null;
+                }
+            }
+            else if (Match(TokenType.repeat))
+            {
+                string count = "1"; // значение по умолчанию
+                bool hasNumber = false;
+
+                if (Match(TokenType.Number))
+                {
+                    count = Previous().Value;
+                    hasNumber = true;
+                }
+                else
+                {
+                    Errors.Add($"Ожидалось число после repeat на строке {Previous().Line}, столбце {Previous().Column}");
+                }
+
+                if (!Match(TokenType.OpenBracket))
+                {
+                    Errors.Add($"Ожидалась [ после repeat {(hasNumber ? count : "(?)")}");
+                    return null;
+                }
+
+                bool hadCommands;
+                var body = ParseCommandSequence(out hadCommands);
+
+                if (!hadCommands)
+                {
+                    Errors.Add($"Пустой блок команд в repeat {count} на строке {Previous().Line}, столбце {Previous().Column}");
+                }
+
+                if (!Match(TokenType.CloseBracket))
+                {
+                    Errors.Add("Ожидалась ] в конце блока repeat");
+                    return null;
+                }
+
+                return new RepeatNode(count, body);
+            }
+            else if (Check(TokenType.UnknownWord))
+            {
+                var wrong = Advance();
+
+                var expected = GetExpectedKeyword(wrong.Value);
+                // Пробуем распознать: это была попытка команды или repeat
+                if (expected == "repeat")
+                {
+                    Errors.Add($"Неизвестное или неверно написанное ключевое слово '{wrong.Value}'. Ожидалось \"repeat\" на строке {wrong.Line}, столбце {wrong.Column}");
+
+                    // Пытаемся съесть число (повторение)
+                    string count = "1";
+                    if (Check(TokenType.Number))
+                    {
+                        count = Advance().Value;
+                    }
+                    else
+                    {
+                        Errors.Add($"Ожидалось число после '{wrong.Value}' на строке {wrong.Line}, столбце {wrong.Column + wrong.Value.Length}");
+                    }
+
+                    // Пытаемся съесть [
+                    if (!Match(TokenType.OpenBracket))
+                    {
+                        Errors.Add($"Ожидалась [ после '{wrong.Value}' {count}");
+                        return null;
+                    }
+
+                    // Парсим тело, даже если repeat написан с ошибкой
+                    bool hadCommands;
+                    var body = ParseCommandSequence(out hadCommands);
+
+                    if (!hadCommands)
+                    {
+                        Errors.Add($"Пустой блок команд в '{wrong.Value}' {count} на строке {Previous().Line}, столбце {Previous().Column}");
+                    }
+
+                    if (!Match(TokenType.CloseBracket))
+                    {
+                        Errors.Add($"Ожидалась ] в конце блока '{wrong.Value}'");
+                        return null;
+                    }
+
+                    // Возвращаем RepeatNode, даже если repeat был написан с ошибкой
+                    return new RepeatNode(count, body);
+                }
+                else if (expected != null)
+                {
+                    Errors.Add($"Неизвестное или неверно написанное ключевое слово '{wrong.Value}'. Ожидалось \"{expected}\" на строке {wrong.Line}, столбце {wrong.Column}");
+
+                    // Проглатываем число, если оно есть (например: forw5ard 10)
+                    if (Check(TokenType.Number))
+                        Advance();
+
+                    return null;
+                }
+                else
+                {
+                    Errors.Add($"Неизвестное ключевое слово '{wrong.Value}' на строке {wrong.Line}, столбце {wrong.Column}");
+
+                    // Если после — число, проглотим его
+                    if (Check(TokenType.Number))
+                        Advance();
+
+                    return null;
+                }
+                //else
+                //{
+                //    Errors.Add($"Неизвестное или неверно написанное ключевое слово '{wrong.Value}' на строке {wrong.Line}, столбце {wrong.Column}");
+
+                //    // Если после неизвестного слова идет число — просто проглотим
+                //    if (Check(TokenType.Number))
+                //    {
+                //        Advance();
+                //    }
+                //    else
+                //    {
+                //        Errors.Add($"Ожидалось число после '{wrong.Value}' на строке {wrong.Line}, столбце {wrong.Column + wrong.Value.Length}");
+                //    }
+
+                //    return null;
+                //}
+            }
+
+            else
+            {
+                Errors.Add($"Неожиданный токен {token.Type} на строке {token.Line}, столбце {token.Column}");
+                Advance(); // Пропускаем ошибку
+                return null;
+            }
+        }
+
+
+        
+
+        private bool Match(params TokenType[] types)
+        {
+            foreach (var type in types)
+            {
+                if (Check(type))
+                {
+                    Advance();
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private bool Check(TokenType type)
+        {
+            if (IsAtEnd()) return false;
+            return Peek().Type == type;
+        }
+
+        private Token Advance()
+        {
+            if (!IsAtEnd()) position++;
+            return Previous();
+        }
+
+        private string? GetExpectedKeyword(string actual)
+        {
+            string[] keywords = { "repeat", "forward", "back", "left", "right" };
+            int minDistance = int.MaxValue;
+            string? closest = null;
+
+            foreach (var keyword in keywords)
+            {
+                int dist = Levenshtein(actual.ToLower(), keyword);
+                int maxAllowed = Math.Max(1, keyword.Length / 2);
+
+                if (dist <= maxAllowed && dist < minDistance)
+                {
+                    minDistance = dist;
+                    closest = keyword;
+                }
+            }
+
+            return closest;
+        }
+
+
+        private bool IsAtEnd() => position >= tokens.Count;
+        private Token Peek() => tokens[Math.Min(position, tokens.Count - 1)];
+        private Token Previous() => tokens[Math.Max(position - 1, 0)];
+
+        private int Levenshtein(string s, string t)
+        {
+            int[,] d = new int[s.Length + 1, t.Length + 1];
+
+            for (int i = 0; i <= s.Length; i++) d[i, 0] = i;
+            for (int j = 0; j <= t.Length; j++) d[0, j] = j;
+
+            for (int i = 1; i <= s.Length; i++)
+            {
+                for (int j = 1; j <= t.Length; j++)
+                {
+                    int cost = (s[i - 1] == t[j - 1]) ? 0 : 1;
+                    d[i, j] = Math.Min(
+                        Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
+                        d[i - 1, j - 1] + cost
+                    );
+                }
+            }
+
+            return d[s.Length, t.Length];
+        }
+    }
+
+
 
     //public class Parser
     //{
@@ -404,4 +676,149 @@ namespace ToC_Lab1
     //        return Match(type, out _);
     //    }
     //}
+
+
+
+
+
+    //private ASTNode? ParseCommand()
+    //{
+    //    var token = Peek();
+
+    //    if (Match(TokenType.Forward, TokenType.Back, TokenType.Left, TokenType.Right))
+    //    {
+    //        Token command = Previous();
+    //        if (Match(TokenType.Number))
+    //        {
+    //            return new CommandNode(command.Type, Previous().Value);
+    //        }
+    //        else
+    //        {
+    //            Errors.Add($"Ожидалось число после {command.Type} на строке {command.Line}, столбце {command.Column}");
+    //            return null;
+    //        }
+    //    }
+    //    else if (Match(TokenType.Repeat))
+    //    {
+    //        if (!Match(TokenType.Number))
+    //        {
+    //            Errors.Add($"Ожидалось число после repeat на строке {Previous().Line}, столбце {Previous().Column}");
+    //            return null;
+    //        }
+
+    //        string count = Previous().Value;
+
+    //        if (!Match(TokenType.OpenBracket))
+    //        {
+    //            Errors.Add($"Ожидалась [ после repeat {count}");
+    //            return null;
+    //        }
+
+    //        var body = ParseCommandSequence();
+
+    //        if (!Match(TokenType.CloseBracket))
+    //        {
+    //            Errors.Add("Ожидалась ] в конце блока repeat");
+    //            return null;
+    //        }
+
+    //        return new RepeatNode(count, body);
+    //    }
+    //    else
+    //    {
+    //        Errors.Add($"Неожиданный токен {token.Type} на строке {token.Line}, столбце {token.Column}");
+    //        Advance(); // пропустим ошибку
+    //        return null;
+    //    }
+    //}
+
+    // Вспомогательные методы
+
+    //private ASTNode? ParseCommand()
+    //{
+    //    var token = Peek();
+
+    //    if (Match(TokenType.forward, TokenType.back, TokenType.left, TokenType.right))
+    //    {
+    //        Token command = Previous();
+    //        if (Match(TokenType.Number))
+    //        {
+    //            return new CommandNode(command.Type, Previous().Value);
+    //        }
+    //        else
+    //        {
+    //            Errors.Add($"Ожидалось число после {command.Type} на строке {command.Line}, столбце {command.Column}");
+    //            return null;
+    //        }
+    //    }
+    //    else if (Match(TokenType.repeat))
+    //    {
+    //        if (!Match(TokenType.Number))
+    //        {
+    //            Errors.Add($"Ожидалось число после repeat на строке {Previous().Line}, столбце {Previous().Column}");
+    //            return null;
+    //        }
+
+    //        string count = Previous().Value;
+
+    //        if (!Match(TokenType.OpenBracket))
+    //        {
+    //            Errors.Add($"Ожидалась [ после repeat {count}");
+    //            return null;
+    //        }
+
+    //        var body = ParseCommandSequence();
+
+    //        if (body.Count == 0)
+    //        {
+    //            Errors.Add($"Пустой блок команд в repeat {count} на строке {Previous().Line}, столбце {Previous().Column}");
+    //            return null;
+    //        }
+
+    //        if (!Match(TokenType.CloseBracket))
+    //        {
+    //            Errors.Add("Ожидалась ] в конце блока repeat");
+    //            return null;
+    //        }
+
+    //        return new RepeatNode(count, body);
+    //    }
+    //    else
+    //    {
+    //        Errors.Add($"Неожиданный токен {token.Type} на строке {token.Line}, столбце {token.Column}");
+    //        Advance(); // пропустим ошибку
+    //        return null;
+    //    }
+    //}
+
+
+
+    //public ASTNode Parse(List<Token> tokenList)
+    //{
+    //    tokens = tokenList;
+    //    position = 0;
+    //    var body = ParseCommandSequence();
+    //    if (Errors.Count == 0 && position < tokens.Count)
+    //        Errors.Add($"Лишние токены после конца программы, начиная с: {Peek()}");
+
+    //    return body.Count == 1 ? body[0] : new RepeatNode("1", body); // обернем всё в repeat 1, если несколько команд
+    //}
+
+
+    //private List<ASTNode> ParseCommandSequence()
+    //{
+    //    var commands = new List<ASTNode>();
+
+    //    while (!IsAtEnd() && !Check(TokenType.CloseBracket))
+    //    {
+    //        var command = ParseCommand();
+    //        if (command != null)
+    //            commands.Add(command);
+    //        else
+    //            break;
+    //    }
+
+    //    return commands;
+    //}
+
 }
