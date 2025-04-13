@@ -53,6 +53,8 @@ namespace ToC_Lab1
         }
 
 
+
+
         private ASTNode? ParseCommand()
         {
             var token = Peek();
@@ -71,24 +73,88 @@ namespace ToC_Lab1
                     return null;
                 }
             }
-            else if (Match(TokenType.repeat))
+            else if (Match(TokenType.repeat) || Check(TokenType.UnknownWord))
             {
-                string count = "1"; // значение по умолчанию
-                bool hasNumber = false;
+                Token repeatToken;
+                bool isMisspelledRepeat = false;
 
-                if (Match(TokenType.Number))
+                // Определяем, это прямое repeat или опечатка
+                if (Previous().Type == TokenType.repeat)
                 {
-                    count = Previous().Value;
-                    hasNumber = true;
+                    repeatToken = Previous();
                 }
                 else
                 {
-                    Errors.Add($"Ожидалось число после repeat на строке {Previous().Line}, столбце {Previous().Column}");
+                    repeatToken = Peek();
+                    var expected = GetExpectedKeyword(repeatToken.Value);
+                    isMisspelledRepeat = expected == "repeat";
+
+                    if (!isMisspelledRepeat)
+                    {
+                        // Это не похоже на repeat, обрабатываем как другое ключевое слово
+                        var wrong = Advance();
+                        expected = GetExpectedKeyword(wrong.Value);
+
+                        if (expected != null)
+                        {
+                            Errors.Add($"Неизвестное или неверно написанное ключевое слово '{wrong.Value}'. Ожидалось \"{expected}\" на строке {wrong.Line}, столбце {wrong.Column}");
+
+                            // Для команд (forward/back/left/right) проглатываем число если есть
+                            if (expected == "forward" || expected == "back" || expected == "left" || expected == "right")
+                            {
+                                if (Check(TokenType.Number))
+                                    Advance();
+                            }
+                        }
+                        else
+                        {
+                            Errors.Add($"Неизвестное ключевое слово '{wrong.Value}' на строке {wrong.Line}, столбце {wrong.Column}");
+
+                            // Если после - число, проглотим его
+                            if (Check(TokenType.Number))
+                                Advance();
+                        }
+
+                        return null;
+                    }
+
+                    // Это опечатка repeat, но мы будем обрабатывать как repeat
+                    Errors.Add($"Неверное написание 'repeat' ('{repeatToken.Value}') на строке {repeatToken.Line}, столбце {repeatToken.Column}");
+                    Advance(); // Пропускаем неправильное слово
                 }
 
+                // Далее идет обработка repeat (как в оригинальном коде)
+                string count = "1";
+                bool hasNumber = false;
+
+                // Обрабатываем число
+                while (!IsAtEnd() && !Check(TokenType.OpenBracket))
+                {
+                    if (Check(TokenType.Number))
+                    {
+                        count = Advance().Value;
+                        hasNumber = true;
+                        break;
+                    }
+                    else
+                    {
+                        var unexpected = Advance();
+                        if (!unexpected.Value.All(char.IsWhiteSpace))
+                        {
+                            Errors.Add($"Ожидалось число, но получено '{unexpected.Value}' на строке {unexpected.Line}, столбце {unexpected.Column}");
+                        }
+                    }
+                }
+
+                if (!hasNumber)
+                {
+                    Errors.Add($"Ожидалось число после repeat на строке {repeatToken.Line}, столбце {repeatToken.Column + repeatToken.Value.Length}");
+                }
+
+                // Ожидаем [
                 if (!Match(TokenType.OpenBracket))
                 {
-                    Errors.Add($"Ожидалась [ после repeat {(hasNumber ? count : "(?)")}");
+                    Errors.Add($"Ожидалась [ после repeat {count} на строке {Peek().Line}, столбце {Peek().Column}");
                     return null;
                 }
 
@@ -97,111 +163,236 @@ namespace ToC_Lab1
 
                 if (!hadCommands)
                 {
-                    Errors.Add($"Пустой блок команд в repeat {count} на строке {Previous().Line}, столбце {Previous().Column}");
+                    Errors.Add($"Пустой блок команд в repeat на строке {repeatToken.Line}, столбце {repeatToken.Column}");
                 }
 
                 if (!Match(TokenType.CloseBracket))
                 {
-                    Errors.Add("Ожидалась ] в конце блока repeat");
+                    Errors.Add($"Ожидалась ] в конце блока repeat на строке {Peek().Line}, столбце {Peek().Column}");
                     return null;
                 }
 
                 return new RepeatNode(count, body);
             }
-            else if (Check(TokenType.UnknownWord))
-            {
-                var wrong = Advance();
+            //else if (Match(TokenType.repeat) || Check(TokenType.UnknownWord))
+            //{
+            //    Token repeatToken;
+            //    bool isMisspelledRepeat = false;
 
-                var expected = GetExpectedKeyword(wrong.Value);
-                // Пробуем распознать: это была попытка команды или repeat
-                if (expected == "repeat")
-                {
-                    Errors.Add($"Неизвестное или неверно написанное ключевое слово '{wrong.Value}'. Ожидалось \"repeat\" на строке {wrong.Line}, столбце {wrong.Column}");
+            //    // Определяем, это прямое repeat или опечатка
+            //    if (Previous().Type == TokenType.repeat)
+            //    {
+            //        repeatToken = Previous();
+            //    }
+            //    else
+            //    {
+            //        repeatToken = Peek();
+            //        var expected = GetExpectedKeyword(repeatToken.Value);
+            //        isMisspelledRepeat = expected == "repeat";
 
-                    // Пытаемся съесть число (повторение)
-                    string count = "1";
-                    if (Check(TokenType.Number))
-                    {
-                        count = Advance().Value;
-                    }
-                    else
-                    {
-                        Errors.Add($"Ожидалось число после '{wrong.Value}' на строке {wrong.Line}, столбце {wrong.Column + wrong.Value.Length}");
-                    }
+            //        if (!isMisspelledRepeat)
+            //        {
+            //            Errors.Add($"Неизвестное ключевое слово '{repeatToken.Value}' на строке {repeatToken.Line}, столбце {repeatToken.Column}");
+            //            Advance();
+            //            return null;
+            //        }
 
-                    // Пытаемся съесть [
-                    if (!Match(TokenType.OpenBracket))
-                    {
-                        Errors.Add($"Ожидалась [ после '{wrong.Value}' {count}");
-                        return null;
-                    }
+            //        // Это опечатка repeat, но мы будем обрабатывать как repeat
+            //        Errors.Add($"Неверное написание 'repeat' ('{repeatToken.Value}') на строке {repeatToken.Line}, столбце {repeatToken.Column}");
+            //        Advance(); // Пропускаем неправильное слово
+            //    }
 
-                    // Парсим тело, даже если repeat написан с ошибкой
-                    bool hadCommands;
-                    var body = ParseCommandSequence(out hadCommands);
+            //    string count = "1";
+            //    bool hasNumber = false;
 
-                    if (!hadCommands)
-                    {
-                        Errors.Add($"Пустой блок команд в '{wrong.Value}' {count} на строке {Previous().Line}, столбце {Previous().Column}");
-                    }
+            //    // Обрабатываем число (кавычки не пропускаем, считаем ошибкой)
+            //    while (!IsAtEnd() && !Check(TokenType.OpenBracket))
+            //    {
+            //        if (Check(TokenType.Number))
+            //        {
+            //            count = Advance().Value;
+            //            hasNumber = true;
+            //            break;
+            //        }
+            //        else
+            //        {
+            //            var unexpected = Advance();
+            //            if (!unexpected.Value.All(char.IsWhiteSpace))
+            //            {
+            //                Errors.Add($"Ожидалось число, но получено '{unexpected.Value}' на строке {unexpected.Line}, столбце {unexpected.Column}");
+            //            }
+            //        }
+            //    }
 
-                    if (!Match(TokenType.CloseBracket))
-                    {
-                        Errors.Add($"Ожидалась ] в конце блока '{wrong.Value}'");
-                        return null;
-                    }
+            //    if (!hasNumber)
+            //    {
+            //        Errors.Add($"Ожидалось число после repeat на строке {repeatToken.Line}, столбце {repeatToken.Column + repeatToken.Value.Length}");
+            //    }
 
-                    // Возвращаем RepeatNode, даже если repeat был написан с ошибкой
-                    return new RepeatNode(count, body);
-                }
-                else if (expected != null)
-                {
-                    Errors.Add($"Неизвестное или неверно написанное ключевое слово '{wrong.Value}'. Ожидалось \"{expected}\" на строке {wrong.Line}, столбце {wrong.Column}");
+            //    // Ожидаем [
+            //    while (!IsAtEnd() && !Check(TokenType.OpenBracket))
+            //    {
+            //        var unexpected = Advance();
+            //        if (!unexpected.Value.All(char.IsWhiteSpace))
+            //        {
+            //            Errors.Add($"Ожидалась [ после repeat {count} на строке {unexpected.Line}, столбце {unexpected.Column}");
+            //        }
+            //    }
 
-                    // Проглатываем число, если оно есть (например: forw5ard 10)
-                    if (Check(TokenType.Number))
-                        Advance();
+            //    if (!Match(TokenType.OpenBracket))
+            //    {
+            //        return null;
+            //    }
 
-                    return null;
-                }
-                else
-                {
-                    Errors.Add($"Неизвестное ключевое слово '{wrong.Value}' на строке {wrong.Line}, столбце {wrong.Column}");
+            //    bool hadCommands;
+            //    var body = ParseCommandSequence(out hadCommands);
 
-                    // Если после — число, проглотим его
-                    if (Check(TokenType.Number))
-                        Advance();
+            //    if (!hadCommands)
+            //    {
+            //        Errors.Add($"Пустой блок команд в repeat на строке {repeatToken.Line}, столбце {repeatToken.Column}");
+            //    }
 
-                    return null;
-                }
-                //else
-                //{
-                //    Errors.Add($"Неизвестное или неверно написанное ключевое слово '{wrong.Value}' на строке {wrong.Line}, столбце {wrong.Column}");
+            //    if (!Match(TokenType.CloseBracket))
+            //    {
+            //        Errors.Add($"Ожидалась ] в конце блока repeat на строке {Peek().Line}, столбце {Peek().Column}");
+            //        return null;
+            //    }
 
-                //    // Если после неизвестного слова идет число — просто проглотим
-                //    if (Check(TokenType.Number))
-                //    {
-                //        Advance();
-                //    }
-                //    else
-                //    {
-                //        Errors.Add($"Ожидалось число после '{wrong.Value}' на строке {wrong.Line}, столбце {wrong.Column + wrong.Value.Length}");
-                //    }
+            //    return new RepeatNode(count, body);
+            //}
+            //else if (Match(TokenType.repeat))
+            //{
+            //    string count = "1"; // значение по умолчанию
+            //    bool hasNumber = false;
 
-                //    return null;
-                //}
-            }
+            //    // Если нет числа, то продолжаем искать [
+            //    while (!IsAtEnd() && !Check(TokenType.OpenBracket))
+            //    {
+            //        var unexpectedToken = Peek();
+            //        if (Check(TokenType.Number))
+            //        {
+            //            count = Advance().Value;
+            //            hasNumber = true;
+            //            break;
+            //        }
+            //        else if (Check(TokenType.UnknownWord))
+            //        {
+            //            var unknownWord = Advance();
+            //            Errors.Add($"Неизвестное ключевое слово '{unknownWord.Value}' на строке {unknownWord.Line}, столбце {unknownWord.Column}");
+            //            continue;
+            //        }
+            //        else
+            //        {
+            //            Errors.Add($"Неожиданный токен '{unexpectedToken.Value}' на строке {unexpectedToken.Line}, столбце {unexpectedToken.Column}");
+            //            Advance(); // Пропускаем ошибку
+            //            continue;
+            //        }
+            //    }
 
+            //    if (!hasNumber)
+            //    {
+            //        Errors.Add($"Ожидалось число после repeat на строке {Previous().Line}, столбце {Previous().Column}");
+            //    }
+
+            //    // Теперь мы обязательно ожидаем [
+            //    if (!Match(TokenType.OpenBracket))
+            //    {
+            //        Errors.Add($"Ожидалась [ после repeat {(hasNumber ? count : "(?)")}");
+            //        return null;
+            //    }
+
+            //    bool hadCommands;
+            //    var body = ParseCommandSequence(out hadCommands);
+
+            //    if (!hadCommands)
+            //    {
+            //        Errors.Add($"Пустой блок команд в repeat {count} на строке {Previous().Line}, столбце {Previous().Column}");
+            //    }
+
+            //    if (!Match(TokenType.CloseBracket))
+            //    {
+            //        Errors.Add("Ожидалась ] в конце блока repeat");
+            //        return null;
+            //    }
+
+            //    return new RepeatNode(count, body);
+            //}
+            //else if (Check(TokenType.UnknownWord))
+            //{
+            //    var wrong = Advance();
+
+            //    var expected = GetExpectedKeyword(wrong.Value);
+            //    // Пробуем распознать: это была попытка команды или repeat
+            //    if (expected == "repeat")
+            //    {
+            //        Errors.Add($"Неизвестное или неверно написанное ключевое слово '{wrong.Value}'. Ожидалось \"repeat\" на строке {wrong.Line}, столбце {wrong.Column}");
+
+            //        // Пытаемся съесть число (повторение)
+            //        string count = "1";
+            //        if (Check(TokenType.Number))
+            //        {
+            //            count = Advance().Value;
+            //        }
+            //        else
+            //        {
+            //            Errors.Add($"Ожидалось число после '{wrong.Value}' на строке {wrong.Line}, столбце {wrong.Column + wrong.Value.Length}");
+            //        }
+
+            //        // Пытаемся съесть [
+            //        if (!Match(TokenType.OpenBracket))
+            //        {
+            //            Errors.Add($"Ожидалась [ после '{wrong.Value}' {count}");
+            //            return null;
+            //        }
+
+            //        // Парсим тело, даже если repeat написан с ошибкой
+            //        bool hadCommands;
+            //        var body = ParseCommandSequence(out hadCommands);
+
+            //        if (!hadCommands)
+            //        {
+            //            Errors.Add($"Пустой блок команд в '{wrong.Value}' {count} на строке {Previous().Line}, столбце {Previous().Column}");
+            //        }
+
+            //        if (!Match(TokenType.CloseBracket))
+            //        {
+            //            Errors.Add($"Ожидалась ] в конце блока '{wrong.Value}'");
+            //            return null;
+            //        }
+
+            //        // Возвращаем RepeatNode, даже если repeat был написан с ошибкой
+            //        return new RepeatNode(count, body);
+            //    }
+            //    else if (expected != null)
+            //    {
+            //        Errors.Add($"Неизвестное или неверно написанное ключевое слово '{wrong.Value}'. Ожидалось \"{expected}\" на строке {wrong.Line}, столбце {wrong.Column}");
+
+            //        // Проглатываем число, если оно есть (например: forw5ard 10)
+            //        if (Check(TokenType.Number))
+            //            Advance();
+
+            //        return null;
+            //    }
+            //    else
+            //    {
+            //        Errors.Add($"Неизвестное ключевое слово '{wrong.Value}' на строке {wrong.Line}, столбце {wrong.Column}");
+
+            //        // Если после — число, проглотим его
+            //        if (Check(TokenType.Number))
+            //            Advance();
+
+            //        return null;
+            //    }
+            //}
             else
             {
-                Errors.Add($"Неожиданный токен {token.Type} на строке {token.Line}, столбце {token.Column}");
+                Errors.Add($"Неожиданный токен {token.Value} на строке {token.Line}, столбце {token.Column}");
                 Advance(); // Пропускаем ошибку
                 return null;
             }
         }
 
 
-        
 
         private bool Match(params TokenType[] types)
         {
