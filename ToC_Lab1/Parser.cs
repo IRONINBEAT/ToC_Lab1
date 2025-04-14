@@ -63,13 +63,20 @@ namespace ToC_Lab1
             {
                 Token command = Previous();
 
-                // Обрабатываем некорректные символы перед числом
-                while (!IsAtEnd() && !Check(TokenType.Number) && !char.IsDigit(Peek().Value[0]))
+                // Обрабатываем некорректные символы перед числом, но не пропускаем закрывающую скобку
+                while (!IsAtEnd() && !Check(TokenType.Number))
                 {
-                    var invalidChar = Advance();
-                    if (!char.IsWhiteSpace(invalidChar.Value[0]))
+                    // Если встретили закрывающую скобку - выходим из цикла
+                    if (Check(TokenType.CloseBracket))
+                        break;
+
+                    if (!char.IsDigit(Peek().Value[0]))
                     {
-                        Errors.Add($"Некорректный символ '{invalidChar.Value}' на строке {invalidChar.Line}, столбце {invalidChar.Column}");
+                        var invalidChar = Advance();
+                        if (!char.IsWhiteSpace(invalidChar.Value[0]))
+                        {
+                            Errors.Add($"Некорректный символ '{invalidChar.Value}' на строке {invalidChar.Line}, столбце {invalidChar.Column}");
+                        }
                     }
                 }
 
@@ -83,6 +90,7 @@ namespace ToC_Lab1
                     return null;
                 }
             }
+            
 
             else if (Match(TokenType.repeat) || Check(TokenType.UnknownWord))
             {
@@ -110,20 +118,28 @@ namespace ToC_Lab1
                         {
                             Errors.Add($"Неизвестное или неверно написанное ключевое слово '{wrong.Value}'. Ожидалось \"{expected}\" на строке {wrong.Line}, столбце {wrong.Column}");
 
-                            // Для команд (forward/back/left/right) проглатываем число если есть
+                            // Для команд (forward/back/left/right) проверяем наличие числа
                             if (expected == "forward" || expected == "back" || expected == "left" || expected == "right")
                             {
-                                if (Check(TokenType.Number))
+                                // Пропускаем пробелы
+                                while (!IsAtEnd() && char.IsWhiteSpace(Peek().Value[0]))
+                                {
                                     Advance();
+                                }
+
+                                if (!IsAtEnd() && !Check(TokenType.Number))
+                                {
+                                    Errors.Add($"Ожидалось число после команды на строке {wrong.Line}, столбце {wrong.Column + wrong.Value.Length}");
+                                }
+                                else if (Check(TokenType.Number))
+                                {
+                                    Advance(); // Пропускаем число
+                                }
                             }
                         }
                         else
                         {
                             Errors.Add($"Неизвестное ключевое слово '{wrong.Value}' на строке {wrong.Line}, столбце {wrong.Column}");
-
-                            // Если после - число, проглотим его
-                            if (Check(TokenType.Number))
-                                Advance();
                         }
 
                         return null;
@@ -133,6 +149,54 @@ namespace ToC_Lab1
                     Errors.Add($"Неверное написание 'repeat' ('{repeatToken.Value}') на строке {repeatToken.Line}, столбце {repeatToken.Column}");
                     Advance(); // Пропускаем неправильное слово
                 }
+
+                //Token repeatToken;
+                //bool isMisspelledRepeat = false;
+
+                //// Определяем, это прямое repeat или опечатка
+                //if (Previous().Type == TokenType.repeat)
+                //{
+                //    repeatToken = Previous();
+                //}
+                //else
+                //{
+                //    repeatToken = Peek();
+                //    var expected = GetExpectedKeyword(repeatToken.Value);
+                //    isMisspelledRepeat = expected == "repeat";
+
+                //    if (!isMisspelledRepeat)
+                //    {
+                //        // Это не похоже на repeat, обрабатываем как другое ключевое слово
+                //        var wrong = Advance();
+                //        expected = GetExpectedKeyword(wrong.Value);
+
+                //        if (expected != null)
+                //        {
+                //            Errors.Add($"Неизвестное или неверно написанное ключевое слово '{wrong.Value}'. Ожидалось \"{expected}\" на строке {wrong.Line}, столбце {wrong.Column}");
+
+                //            // Для команд (forward/back/left/right) проглатываем число если есть
+                //            if (expected == "forward" || expected == "back" || expected == "left" || expected == "right")
+                //            {
+                //                if (Check(TokenType.Number))
+                //                    Advance();
+                //            }
+                //        }
+                //        else
+                //        {
+                //            Errors.Add($"Неизвестное ключевое слово '{wrong.Value}' на строке {wrong.Line}, столбце {wrong.Column}");
+
+                //            // Если после - число, проглотим его
+                //            if (Check(TokenType.Number))
+                //                Advance();
+                //        }
+
+                //        return null;
+                //    }
+
+                //    // Это опечатка repeat, но мы будем обрабатывать как repeat
+                //    Errors.Add($"Неверное написание 'repeat' ('{repeatToken.Value}') на строке {repeatToken.Line}, столбце {repeatToken.Column}");
+                //    Advance(); // Пропускаем неправильное слово
+                //}
 
                 // Далее идет обработка repeat (как в оригинальном коде)
                 string count = "1";
