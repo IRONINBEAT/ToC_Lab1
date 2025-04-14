@@ -12,38 +12,88 @@ namespace ToC_Lab1
         private int position;
         public List<string> Errors { get; } = new();
 
+
         public ASTNode Parse(List<Token> tokenList)
         {
             tokens = tokenList;
             position = 0;
 
-            // Теперь передаем hadAnyCommands
             bool hadCommands;
-            var body = ParseCommandSequence(out hadCommands);
+            var body = ParseCommandSequence(out hadCommands, 0); // теперь с глубиной
+
+            CheckBracketsBalance();
 
             if (Errors.Count == 0 && position < tokens.Count)
                 Errors.Add($"Лишние токены после конца программы, начиная с: {Peek()}");
 
-            // Если в блоке команд есть хотя бы одна команда (несмотря на ошибки), не считаем его пустым
             if (!hadCommands)
             {
                 Errors.Add($"Пустой блок команд в repeat на строке {Previous().Line}, столбце {Previous().Column}");
             }
 
-            return body.Count == 1 ? body[0] : new RepeatNode("1", body); // Если несколько команд, оборачиваем их в repeat
+            return body.Count == 1 ? body[0] : new RepeatNode("1", body);
         }
+        //public ASTNode Parse(List<Token> tokenList)
+        //{
+        //    tokens = tokenList;
+        //    position = 0;
 
-      
+        //    bool hadCommands;
+        //    var body = ParseCommandSequence(out hadCommands, 0); // ← передаём глубину
+        //    //var body = ParseCommandSequence(out hadCommands);
 
-        private List<ASTNode> ParseCommandSequence(out bool hadAnyCommands)
+        //    // Проверяем баланс скобок после основного парсинга
+        //    CheckBracketsBalance();
+
+        //    if (Errors.Count == 0 && position < tokens.Count)
+        //        Errors.Add($"Лишние токены после конца программы, начиная с: {Peek()}");
+
+        //    if (!hadCommands)
+        //    {
+        //        Errors.Add($"Пустой блок команд в repeat на строке {Previous().Line}, столбце {Previous().Column}");
+        //    }
+
+        //    return body.Count == 1 ? body[0] : new RepeatNode("1", body);
+        //}
+        //public ASTNode Parse(List<Token> tokenList)
+        //{
+        //    tokens = tokenList;
+        //    position = 0;
+
+        //    // Теперь передаем hadAnyCommands
+        //    bool hadCommands;
+        //    var body = ParseCommandSequence(out hadCommands);
+
+        //    if (Errors.Count == 0 && position < tokens.Count)
+        //        Errors.Add($"Лишние токены после конца программы, начиная с: {Peek()}");
+
+        //    // Если в блоке команд есть хотя бы одна команда (несмотря на ошибки), не считаем его пустым
+        //    if (!hadCommands)
+        //    {
+        //        Errors.Add($"Пустой блок команд в repeat на строке {Previous().Line}, столбце {Previous().Column}");
+        //    }
+
+        //    return body.Count == 1 ? body[0] : new RepeatNode("1", body); // Если несколько команд, оборачиваем их в repeat
+        //}
+
+
+        private List<ASTNode> ParseCommandSequence(out bool hadAnyCommands, int depth)
         {
             var commands = new List<ASTNode>();
             hadAnyCommands = false;
 
             while (!IsAtEnd() && !Check(TokenType.CloseBracket))
             {
-                var command = ParseCommand();
-                hadAnyCommands = true; // ← Даже если с ошибкой, это попытка команды
+                var startToken = Peek();
+                var command = ParseCommand(depth);
+
+                // ⚠ Проверка: если на верхнем уровне (не внутри repeat) встретили обычную команду — ошибка
+                if (depth == 0 && command is CommandNode)
+                {
+                    Errors.Add($"Команда {startToken.Value} вне блока repeat на строке {startToken.Line}, столбце {startToken.Column}. Необходимо обернуть её в repeat.");
+                }
+
+                hadAnyCommands = true;
 
                 if (command != null)
                     commands.Add(command);
@@ -51,11 +101,27 @@ namespace ToC_Lab1
 
             return commands;
         }
+        //private List<ASTNode> ParseCommandSequence(out bool hadAnyCommands)
+        //{
+        //    var commands = new List<ASTNode>();
+        //    hadAnyCommands = false;
+
+        //    while (!IsAtEnd() && !Check(TokenType.CloseBracket))
+        //    {
+        //        var command = ParseCommand();
+        //        hadAnyCommands = true; // ← Даже если с ошибкой, это попытка команды
+
+        //        if (command != null)
+        //            commands.Add(command);
+        //    }
+
+        //    return commands;
+        //}
 
 
 
 
-        private ASTNode? ParseCommand()
+        private ASTNode? ParseCommand(int depth)
         {
             var token = Peek();
 
@@ -109,40 +175,6 @@ namespace ToC_Lab1
                     return null;
                 }
             }
-            //var token = Peek();
-
-            //if (Match(TokenType.forward, TokenType.back, TokenType.left, TokenType.right))
-            //{
-            //    Token command = Previous();
-
-            //    // Обрабатываем некорректные символы перед числом, но не пропускаем закрывающую скобку
-            //    while (!IsAtEnd() && !Check(TokenType.Number))
-            //    {
-            //        // Если встретили закрывающую скобку - выходим из цикла
-            //        if (Check(TokenType.CloseBracket))
-            //            break;
-
-            //        if (!char.IsDigit(Peek().Value[0]))
-            //        {
-            //            var invalidChar = Advance();
-            //            if (!char.IsWhiteSpace(invalidChar.Value[0]))
-            //            {
-            //                Errors.Add($"Некорректный символ '{invalidChar.Value}' на строке {invalidChar.Line}, столбце {invalidChar.Column}");
-            //            }
-            //        }
-            //    }
-
-            //    if (Match(TokenType.Number))
-            //    {
-            //        return new CommandNode(command.Type, Previous().Value);
-            //    }
-            //    else
-            //    {
-            //        Errors.Add($"Ожидалось число после {command.Type} на строке {command.Line}, столбце {command.Column}");
-            //        return null;
-            //    }
-            //}
-
 
             else if (Match(TokenType.repeat) || Check(TokenType.UnknownWord))
             {
@@ -277,7 +309,7 @@ namespace ToC_Lab1
                 }
 
                 bool hadCommands;
-                var body = ParseCommandSequence(out hadCommands);
+                var body = ParseCommandSequence(out hadCommands, depth + 1); // ← передаём глубину
 
                 if (!hadCommands)
                 {
@@ -348,6 +380,30 @@ namespace ToC_Lab1
             return closest;
         }
 
+        private void CheckBracketsBalance()
+        {
+            int balance = 0;
+            foreach (var token in tokens)
+            {
+                if (token.Type == TokenType.OpenBracket)
+                    balance++;
+                else if (token.Type == TokenType.CloseBracket)
+                    balance--;
+
+                if (balance < 0) // Закрывающая скобка без открывающей
+                {
+                    Errors.Add($"Несбалансированная скобка ] на строке {token.Line}, столбце {token.Column}");
+                    break;
+                }
+            }
+
+            if (balance > 0) // Остались незакрытые скобки
+            {
+                var lastOpen = tokens.LastOrDefault(t => t.Type == TokenType.OpenBracket);
+                if (lastOpen != null)
+                    Errors.Add($"Несбалансированная скобка [ на строке {lastOpen.Line}, столбце {lastOpen.Column}");
+            }
+        }
 
         private bool IsAtEnd() => position >= tokens.Count;
         private Token Peek() => tokens[Math.Min(position, tokens.Count - 1)];
